@@ -6,7 +6,7 @@ Plugins y herramientas de audio open source de **Schmulenson** (DJ y productor a
 |---|---|---|
 | [SCHMU 90s](plugins/schmu-90s/) | Synth de house clásico, garage y 2-step: organ, piano, stabs con chord memory, bajo, drum synth estilo 909/808 y slot de chops. VST3 / AU / Standalone. | beta |
 | [SCHMU Analyzer](plugins/schmu-analyzer/) | Analizador de master: espectro, LUFS EBU R128, true peak, correlación y modo video. VST3 / AU. | beta |
-| SCHMU Chopper | Sampler de vocal chops. | en camino |
+| [SCHMU Chopper](plugins/schmu-chopper/) | Sampler de vocal chops: auto-chop por transientes, 16 pads, modo Key, secuenciador de 16 pasos, pitch sin cambiar la duración y FX. VST3 / AU. | beta |
 
 ## Descargas
 Cada push compila Windows, macOS y Linux con GitHub Actions: pestaña **Actions** → última corrida → **Artifacts**.

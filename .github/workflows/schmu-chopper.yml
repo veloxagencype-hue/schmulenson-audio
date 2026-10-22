@@ -1,0 +1,47 @@
+# SCHMU Chopper: tests de DSP en Linux y compilacion del plugin VST3/AU en Windows y macOS.
+# No sube binarios: hasta que Tomas confirme el camino de licencia (AGPL + codigo publico) no se reparten ejecutables.
+name: schmu-chopper
+on:
+  push:
+    branches: [main]
+    paths: ['plugins/schmu-chopper/**', '.github/workflows/schmu-chopper.yml']
+  pull_request:
+    paths: ['plugins/schmu-chopper/**', '.github/workflows/schmu-chopper.yml']
+  workflow_dispatch:
+
+env:
+  JUCE_TAG: '8.0.8'
+
+jobs:
+  dsp-tests:
+    name: Tests de DSP (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compilar y correr los tests
+        run: |
+          cmake -S plugins/schmu-chopper -B build-tests -DSCHMU_BUILD_PLUGIN=OFF -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-tests --config Release
+          ctest --test-dir build-tests --output-on-failure
+
+  build:
+    name: Plugin ${{ matrix.nombre }}
+    needs: dsp-tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { nombre: Windows, os: windows-latest }
+          - { nombre: macOS,   os: macos-latest }
+    steps:
+      - uses: actions/checkout@v4
+      - name: cache de JUCE
+        uses: actions/cache@v4
+        with:
+          path: build/_deps/juce-src
+          key: juce-${{ env.JUCE_TAG }}-${{ runner.os }}
+      - name: Configurar
+        run: cmake -S plugins/schmu-chopper -B build "-DCMAKE_BUILD_TYPE=Release" "-DSCHMU_BUILD_TESTS=OFF" "-DSCHMU_JUCE_TAG=${{ env.JUCE_TAG }}"
+      - name: Compilar
+        run: cmake --build build --config Release --parallel 4
