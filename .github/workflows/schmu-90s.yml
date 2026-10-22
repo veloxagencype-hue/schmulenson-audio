@@ -1,0 +1,103 @@
+# SCHMU 90s (N12): compila el synth VST3/AU con JUCE en Windows y macOS (y verifica en Linux) y sube los binarios como artefacto.
+# Los artefactos se bajan desde la pestaña "Actions" > corrida > "Artifacts" (se guardan 30 días).
+name: vst-90s
+on:
+  push:
+    branches: [main]
+    paths: ['plugins/schmu-90s/**', '.github/workflows/schmu-90s.yml']
+  pull_request:
+    paths: ['plugins/schmu-90s/**', '.github/workflows/schmu-90s.yml']
+  workflow_dispatch:
+
+env:
+  JUCE_TAG: '8.0.8'
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            nombre: windows
+          - os: macos-latest
+            nombre: macos
+          - os: ubuntu-latest
+            nombre: linux
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: plugins/schmu-90s
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: dependencias de sistema (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libasound2-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxext-dev \
+            libfreetype-dev libfontconfig1-dev libgl-dev xvfb
+
+      - name: cache de JUCE
+        uses: actions/cache@v4
+        with:
+          path: plugins/schmu-90s/build/_deps/juce-src
+          key: juce-${{ env.JUCE_TAG }}-${{ runner.os }}
+
+      - name: configurar
+        run: cmake -S . -B build "-DCMAKE_BUILD_TYPE=Release" "-DSCHMU_JUCE_TAG=${{ env.JUCE_TAG }}"
+
+      - name: compilar
+        run: cmake --build build --config Release --parallel 4
+
+      - name: tests (DSP + prueba de humo del plugin)
+        if: runner.os != 'Linux'
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: tests (Linux, con pantalla virtual)
+        if: runner.os == 'Linux'
+        env:
+          SCHMU_SNAPSHOT_DIR: ${{ github.workspace }}/plugins/schmu-90s/build/snapshots
+        run: |
+          mkdir -p build/snapshots
+          xvfb-run -a ctest --test-dir build -C Release --output-on-failure
+
+      - name: armar paquete (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $out = "paquete"
+          New-Item -ItemType Directory -Force $out | Out-Null
+          Copy-Item -Recurse "build/SCHMU90s_artefacts/Release/VST3/SCHMU 90s.vst3" "$out/"
+          Copy-Item -Recurse "build/SCHMU90s_artefacts/Release/Standalone/SCHMU 90s.exe" "$out/"
+          Copy-Item "ENTREGA.md","README.md","LICENCIAS.md" "$out/"
+      - name: armar paquete (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p paquete
+          ditto "build/SCHMU90s_artefacts/Release/VST3/SCHMU 90s.vst3" "paquete/SCHMU 90s.vst3"
+          ditto "build/SCHMU90s_artefacts/Release/AU/SCHMU 90s.component" "paquete/SCHMU 90s.component"
+          ditto "build/SCHMU90s_artefacts/Release/Standalone/SCHMU 90s.app" "paquete/SCHMU 90s.app"
+          cp ENTREGA.md README.md LICENCIAS.md paquete/
+      - name: armar paquete (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p paquete
+          cp -r "build/SCHMU90s_artefacts/Release/VST3/SCHMU 90s.vst3" paquete/
+          cp ENTREGA.md README.md LICENCIAS.md paquete/
+
+      - name: subir binarios
+        uses: actions/upload-artifact@v4
+        with:
+          name: schmu90s-${{ matrix.nombre }}
+          path: plugins/schmu-90s/paquete
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: subir capturas de la interfaz (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: schmu90s-capturas-ui
+          path: plugins/schmu-90s/build/snapshots
+          if-no-files-found: warn
+          retention-days: 14
